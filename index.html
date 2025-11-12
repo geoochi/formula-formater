@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Excel 公式格式化工具</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+        margin: 0;
+      }
+
+      #root {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+
+      .container {
+        max-width: 1400px;
+        width: 100%;
+      }
+
+      .header {
+        padding: 30px;
+        text-align: center;
+      }
+
+      .header h1 {
+        font-size: 28px;
+        font-weight: 600;
+        margin-bottom: 10px;
+      }
+
+      .header p {
+        font-size: 14px;
+        opacity: 0.9;
+      }
+
+      .content {
+        display: flex;
+        gap: 20px;
+        padding: 30px;
+        min-height: 600px;
+      }
+
+      .panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .panel-label {
+        font-size: 14px;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .panel-label.left {
+        color: #25d393;
+      }
+
+      .panel-label.right {
+        color: #15a9ed;
+      }
+
+      textarea {
+        flex: 1;
+        padding: 20px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'Courier New', monospace;
+        font-size: 14px;
+        line-height: 1.6;
+        resize: none;
+        transition: border-color 0.3s ease;
+        background: #fafafa;
+      }
+
+      textarea:focus {
+        outline: none;
+        border-color: #25d393;
+        background: white;
+      }
+
+      #input-formula {
+        border-color: #25d393;
+      }
+
+      #output-formula {
+        border-color: #15a9ed;
+        background: #f9f9ff;
+      }
+
+      #output-formula:focus {
+        border-color: #15a9ed;
+        background: white;
+      }
+
+      .example {
+        margin-top: 15px;
+        padding: 15px;
+        background: #f5f5f5;
+        border-radius: 6px;
+        font-size: 12px;
+        color: #666;
+      }
+
+      .example-title {
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: #333;
+      }
+
+      .example-code {
+        font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'Courier New', monospace;
+        background: white;
+        padding: 8px;
+        border-radius: 4px;
+        word-break: break-all;
+      }
+
+      @media (max-width: 768px) {
+        .content {
+          flex-direction: column;
+        }
+
+        .header h1 {
+          font-size: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="container">
+        <div class="header">
+          <h1>Excel 公式格式化工具</h1>
+        </div>
+        <div class="content">
+          <div class="panel">
+            <div class="panel-label left">输入公式</div>
+            <textarea id="input-formula"></textarea>
+            <div class="example">
+              <div class="example-title">示例：</div>
+              <div class="example-code">=IF(AND(A1<=1,A1>0),FLOOR(B1),IF(A1<=2,FLOOR(B2),0))</div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-label right">格式化结果</div>
+            <textarea id="output-formula"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function formatExcelFormula(formula) {
+        /**
+         * 将单行 Excel 公式格式化为多行缩进格式
+         *
+         * @param {string} formula - 单行 Excel 公式字符串
+         * @returns {string} 格式化后的多行字符串
+         */
+        if (!formula) {
+          return ''
+        }
+
+        // 移除首尾空格
+        formula = formula.trim()
+
+        // 如果以等号开头，单独处理等号
+        let result = []
+        if (formula.startsWith('=')) {
+          result.push('=')
+          formula = formula.substring(1).trim()
+        }
+
+        let indentLevel = 0
+        const indentSize = 4
+        let i = 0
+        let currentToken = []
+
+        while (i < formula.length) {
+          const char = formula[i]
+
+          if (char === '(') {
+            // 左括号：输出函数名和左括号，换行，增加缩进
+            const token = currentToken.join('').trim()
+            if (token) {
+              result.push(' '.repeat(indentLevel) + token + '(')
+            } else {
+              result.push(' '.repeat(indentLevel) + '(')
+            }
+            currentToken = []
+            indentLevel += indentSize
+            i++
+          } else if (char === ')') {
+            // 右括号：先输出当前token（如果有），减少缩进，换行，输出右括号
+            if (currentToken.length > 0) {
+              const token = currentToken.join('').trim()
+              if (token) {
+                result.push(' '.repeat(indentLevel) + token)
+              }
+              currentToken = []
+            }
+            indentLevel -= indentSize
+            result.push(' '.repeat(indentLevel) + ')')
+            i++
+          } else if (char === ',') {
+            // 逗号：输出当前token和逗号，换行
+            const token = currentToken.join('').trim()
+            if (token) {
+              result.push(' '.repeat(indentLevel) + token + ',')
+            } else {
+              result.push(' '.repeat(indentLevel) + ',')
+            }
+            currentToken = []
+            i++
+          } else {
+            // 其他字符：添加到当前token
+            currentToken.push(char)
+            i++
+          }
+        }
+
+        // 处理最后剩余的内容
+        if (currentToken.length > 0) {
+          const token = currentToken.join('').trim()
+          if (token) {
+            result.push(' '.repeat(indentLevel) + token)
+          }
+        }
+
+        return result.join('\n')
+      }
+
+      function unformatExcelFormula(formatted) {
+        /**
+         * 将多行格式化的 Excel 公式转换回单行格式
+         *
+         * @param {string} formatted - 多行格式化的公式字符串
+         * @returns {string} 单行公式字符串
+         */
+        if (!formatted) {
+          return ''
+        }
+
+        // 移除首尾空格
+        let result = formatted.trim()
+
+        // 移除所有换行符和多余的空白字符，但保留必要的空格
+        // 将多个连续空白字符（包括换行、制表符、空格）替换为单个空格
+        result = result.replace(/[\s\n\r\t]+/g, ' ')
+
+        // 清理括号和逗号前后的多余空格
+        result = result.replace(/\s*\(\s*/g, '(')
+        result = result.replace(/\s*\)\s*/g, ')')
+        result = result.replace(/\s*,\s*/g, ',')
+
+        // 清理等号后的空格
+        result = result.replace(/=\s+/g, '=')
+
+        return result
+      }
+
+      // 获取DOM元素
+      const inputFormula = document.getElementById('input-formula')
+      const outputFormula = document.getElementById('output-formula')
+
+      // localStorage 键名
+      const STORAGE_KEY_INPUT = 'excel-formula-input'
+      const STORAGE_KEY_OUTPUT = 'excel-formula-output'
+
+      // 防止循环更新的标志
+      let isUpdating = false
+
+      // 保存到 localStorage
+      function saveToLocalStorage() {
+        try {
+          localStorage.setItem(STORAGE_KEY_INPUT, inputFormula.value)
+          localStorage.setItem(STORAGE_KEY_OUTPUT, outputFormula.value)
+        } catch (e) {
+          // 如果 localStorage 不可用（如隐私模式），静默失败
+          console.warn('无法保存到 localStorage:', e)
+        }
+      }
+
+      // 从 localStorage 恢复
+      function loadFromLocalStorage() {
+        try {
+          const savedInput = localStorage.getItem(STORAGE_KEY_INPUT)
+          const savedOutput = localStorage.getItem(STORAGE_KEY_OUTPUT)
+          
+          if (savedInput !== null) {
+            inputFormula.value = savedInput
+          }
+          if (savedOutput !== null) {
+            outputFormula.value = savedOutput
+          }
+        } catch (e) {
+          console.warn('无法从 localStorage 读取:', e)
+        }
+      }
+
+      // 从左侧同步到右侧（格式化）
+      function syncLeftToRight() {
+        if (isUpdating) return
+        isUpdating = true
+        const input = inputFormula.value
+        const formatted = formatExcelFormula(input)
+        outputFormula.value = formatted
+        saveToLocalStorage() // 保存到 localStorage
+        setTimeout(() => {
+          isUpdating = false
+        }, 0)
+      }
+
+      // 从右侧同步到左侧（去格式化）
+      function syncRightToLeft() {
+        if (isUpdating) return
+        isUpdating = true
+        const formatted = outputFormula.value
+        const unformatted = unformatExcelFormula(formatted)
+        inputFormula.value = unformatted
+        saveToLocalStorage() // 保存到 localStorage
+        setTimeout(() => {
+          isUpdating = false
+        }, 0)
+      }
+
+      // 监听左侧输入事件
+      inputFormula.addEventListener('input', syncLeftToRight)
+      inputFormula.addEventListener('paste', function () {
+        setTimeout(syncLeftToRight, 0)
+      })
+
+      // 监听右侧输入事件
+      outputFormula.addEventListener('input', syncRightToLeft)
+      outputFormula.addEventListener('paste', function () {
+        setTimeout(syncRightToLeft, 0)
+      })
+
+      // 右侧textarea快捷键：Ctrl+Enter 或 Cmd+Enter 重新格式化
+      outputFormula.addEventListener('keydown', function (e) {
+        // 检测 Ctrl+Enter (Windows/Linux) 或 Cmd+Enter (Mac)
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault() // 阻止默认的换行行为
+          
+          if (isUpdating) return
+          isUpdating = true
+          
+          // 记录当前光标位置
+          const cursorPosition = outputFormula.selectionStart
+          const currentContent = outputFormula.value
+          
+          // 获取光标前后的文本片段用于定位（前后各取30个字符）
+          const contextLength = 30
+          const beforeCursor = currentContent.substring(
+            Math.max(0, cursorPosition - contextLength),
+            cursorPosition
+          )
+          const afterCursor = currentContent.substring(
+            cursorPosition,
+            Math.min(currentContent.length, cursorPosition + contextLength)
+          )
+          
+          // 获取当前右侧内容，先转换为单行，再重新格式化
+          const unformatted = unformatExcelFormula(currentContent)
+          const reformatted = formatExcelFormula(unformatted)
+          
+          // 更新右侧内容
+          outputFormula.value = reformatted
+          
+          // 尝试恢复光标位置
+          // 方法：在格式化后的文本中查找光标前后的文本片段
+          let newCursorPosition = 0
+          
+          if (beforeCursor || afterCursor) {
+            // 构建搜索模式：尝试匹配光标前后的文本
+            const searchPattern = (beforeCursor + afterCursor).trim()
+            if (searchPattern) {
+              // 在格式化后的文本中查找
+              const searchIndex = reformatted.indexOf(searchPattern)
+              if (searchIndex !== -1) {
+                // 找到匹配位置，将光标定位到原位置（相对于匹配文本）
+                newCursorPosition = searchIndex + beforeCursor.length
+              } else {
+                // 如果完整匹配失败，尝试只匹配前面的文本
+                const beforeMatch = reformatted.lastIndexOf(beforeCursor.trim())
+                if (beforeMatch !== -1) {
+                  newCursorPosition = beforeMatch + beforeCursor.trim().length
+                } else {
+                  // 如果还是找不到，尝试匹配后面的文本
+                  const afterMatch = reformatted.indexOf(afterCursor.trim())
+                  if (afterMatch !== -1) {
+                    newCursorPosition = afterMatch
+                  }
+                }
+              }
+            }
+          }
+          
+          // 设置光标位置
+          setTimeout(() => {
+            outputFormula.setSelectionRange(newCursorPosition, newCursorPosition)
+            outputFormula.focus()
+            isUpdating = false
+          }, 0)
+          
+          // 同步到左侧
+          inputFormula.value = unformatted
+          
+          // 保存到 localStorage
+          saveToLocalStorage()
+        }
+      })
+
+      // 页面加载时从 localStorage 恢复内容
+      loadFromLocalStorage()
+      
+      // 如果 localStorage 中有内容，执行一次同步；否则执行默认同步
+      if (inputFormula.value || outputFormula.value) {
+        // 如果只有一侧有内容，需要同步到另一侧
+        if (inputFormula.value && !outputFormula.value) {
+          syncLeftToRight()
+        } else if (outputFormula.value && !inputFormula.value) {
+          syncRightToLeft()
+        }
+      } else {
+        // 页面加载时执行一次同步（如果有初始值）
+        syncLeftToRight()
+      }
+    </script>
+  </body>
+</html>
